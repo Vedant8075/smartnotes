@@ -10,6 +10,8 @@ from database.historySchema import NoteModel,NoteResponseModel
 from database.crud import create_note
 import tempfile
 from services.PDF_summarizer import summarize_long_pdf
+from services.media_summariser.process_media import process_media_file
+from services.Media_summarizer import summarize_long_transcript as summarize_media_transcript
 import os
 app=FastAPI()
 
