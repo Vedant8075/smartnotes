@@ -61,6 +61,7 @@ def transcript_api(url: str):
 # --------------------------
 @app.post("/summarize-yt")
 async def summarize_youtube_and_save(req: SummarizeRequest):
+    print("heelloo strating")
     try:
         if req.transcript:
             transcripts = [item.dict() for item in req.transcript]
@@ -77,6 +78,7 @@ async def summarize_youtube_and_save(req: SummarizeRequest):
         embeddings = None
         try:
             embeddings = create_embeddings(text_for_embedding)
+            print("embedding types",type(embeddings))
             if embeddings:
                 import uuid
                 embedding_reference = f"yt_{uuid.uuid4().hex[:8]}"
@@ -106,7 +108,7 @@ async def summarize_youtube_and_save(req: SummarizeRequest):
             "summary": summary,
             "note": response_note,
             "embeddings_status": "success" if embedding_reference else "skipped",
-            "id": saved_note.get("_id")
+            "id": response_note.get("id"),
         }
 
     except Exception as e:
