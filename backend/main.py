@@ -193,3 +193,96 @@ async def summarize_PDF_and_save(
     except Exception as e:
         return {"error": str(e)}
 
+
+# --------------------------
+# Summarize & Save Note MEDIA (Audio/Video)
+# --------------------------
+
+@app.post("/summarize-media")
+async def summarize_media_and_save(
+        file: UploadFile = File(...),
+        user_id: str = Form(...),
+        type: str = Form("media")
+):
+    import tempfile
+    temp_file_path = None
+    try:
+        if not file.filename:
+            return {"error": "File name is required"}
+
+        file_ext = os.path.splitext(file.filename)[1].lower()
+        allowed_extensions = [
+            ".mp3", ".wav", ".m4a", ".ogg", ".flac", ".aac",
+            ".mp4", ".avi", ".mov", ".mkv", ".webm"
+        ]
+
+        if file_ext not in allowed_extensions:
+            return {"error": f"Unsupported file format: {file_ext}. Supported formats: {', '.join(allowed_extensions)}"}
+
+        # Save uploaded file temporarily
+        file_bytes = await file.read()
+        with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as temp_file:
+            temp_file.write(file_bytes)
+            temp_file_path = temp_file.name
+
+        print(f"Processing media file: {file.filename}")
+
+        transcripts = await process_media_file(temp_file_path, file.filename)
+
+        if not transcripts or len(transcripts) == 0:
+            return {"error": "Failed to transcribe the media file. Please ensure the file contains audio."}
+
+        else:
+            print("Transcript length is : ", len(transcripts))
+            text_for_embedding = " ".join([item["text"] for item in transcripts])
+
+        # Summarize transcript
+        summary = await summarize_media_transcript(transcripts)
+
+        embedding_reference = None
+        embeddings = None
+        try:
+            embeddings = create_embeddings(text_for_embedding)
+            if embeddings:
+                import uuid
+                embedding_reference = f"yt_{uuid.uuid4().hex[:8]}"
+                print(f"✓ Embeddings created successfully with reference: {embedding_reference}")
+            else:
+                print("⚠ Embeddings returned None, proceeding without embedding storage")
+        except Exception as embedding_error:
+            print(f"⚠ Error creating embeddings: {str(embedding_error)}")
+
+        note_data = NoteModel(
+            user_id=user_id,
+            title=file.filename,
+            type=type,
+            summary=summary,
+            transcript=transcripts,
+            source="Uploaded media",
+            embeddings=embeddings
+        )
+
+        saved_note = create_note(note_data)
+        response_note = dict(saved_note)
+        response_note.pop("embeddings", None)
+
+        return {
+            "summary": summary,
+            "note": response_note,
+            "embeddings_status": "success" if embedding_reference else "skipped",
+            "id": saved_note.get("_id")
+        }
+
+    except ValueError as e:
+        return {"error": str(e)}
+    except Exception as e:
+        print(f"Error processing media file: {str(e)}")
+        return {"error": f"Failed to process media file: {str(e)}"}
+
+    finally:
+        if temp_file_path and os.path.exists(temp_file_path):
+            try:
+                os.remove(temp_file_path)
+            except OSError:
+                pass
+
