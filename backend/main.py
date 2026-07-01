@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 from services.media_summariser.embed import create_embeddings
 from services.YT_summarizer import summarize_long_transcript
+from database.historySchema import NoteModel,NoteResponseModel
 
 app=FastAPI()
 
