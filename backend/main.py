@@ -7,7 +7,7 @@ from typing import List, Optional
 from services.media_summariser.embed import create_embeddings
 from services.YT_summarizer import summarize_long_transcript
 from database.historySchema import NoteModel,NoteResponseModel
-from database.crud import create_note
+from database.crud import create_note,delete_note_by_id,get_notes_by_user
 import tempfile
 from services.PDF_summarizer import summarize_long_pdf
 from services.media_summariser.process_media import process_media_file
@@ -287,4 +287,23 @@ async def summarize_media_and_save(
                 os.remove(temp_file_path)
             except OSError:
                 pass
+
+# --------------------------
+# Get Notes by User
+# --------------------------
+@app.get("/notes/", response_model=List[NoteResponseModel])
+def get_user_notes(user_id: str = Query(..., description="ID of the logged-in user")):
+    """
+    Fetch all saved notes for a specific user
+    """
+    try:
+        notes = get_notes_by_user(user_id)  # returns list of dicts
+        # Return as list of NoteResponseModel for FastAPI serialization
+        response_notes = [
+            NoteResponseModel(**note) for note in notes
+        ]
+        return response_notes
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
