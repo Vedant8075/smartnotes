@@ -307,3 +307,19 @@ def get_user_notes(user_id: str = Query(..., description="ID of the logged-in us
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# --------------------------
+# Delete Note by ID
+# --------------------------
+@app.delete("/notes/{note_id}")
+def delete_note(note_id: str):
+    """
+    Delete a specific note by its ID
+    """
+    try:
+        success = delete_note_by_id(note_id)
+        if success:
+            return {"status": "success", "message": "Note deleted successfully"}
+        else:
+            raise HTTPException(status_code=404, detail="Note not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
