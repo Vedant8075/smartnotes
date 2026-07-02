@@ -13,6 +13,7 @@ from services.PDF_summarizer import summarize_long_pdf
 from services.media_summariser.process_media import process_media_file
 from services.Media_summarizer import summarize_long_transcript as summarize_media_transcript
 import os
+from groq import Groq
 app=FastAPI()
 
 # Request Schemas
@@ -323,3 +324,68 @@ def delete_note(note_id: str):
             raise HTTPException(status_code=404, detail="Note not found")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+
+# --------------------------
+# Generate Flashcard Bullet Points from Summary
+# --------------------------
+@app.post("/summarize-flashcard")
+async def summarize_for_flashcard(req: FlashcardRequest):
+    try:
+        if not req.summary or req.summary.strip() == "":
+            return {"error": "Summary is required"}
+
+        groq_api_key = os.getenv("GROQ_API_KEY")
+        if not groq_api_key:
+            return {"error": "Groq API key not configured"}
+
+        client = Groq(api_key=groq_api_key)
+
+        prompt = f"""
+Extract exactly 6 key bullet points from the following summary. 
+Each bullet point should be concise (max 15 words) and capture the main idea.
+Format as a numbered list (1., 2., 3., etc).
+
+Summary:
+{req.summary}
+
+Bullet Points:
+"""
+
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=500,
+            temperature=0.7
+        )
+
+        bullet_points_text = response.choices[0].message.content
+        if not bullet_points_text:
+            return {"status": "error", "error": "No response from Groq"}
+
+        bullet_points_text = bullet_points_text.strip()
+
+        # Parse bullet points into a list
+        lines = bullet_points_text.split("\n")
+        bullet_points = []
+        for line in lines:
+            line = line.strip()
+            if line and (line[0].isdigit() or line.startswith("-") or line.startswith("•")):
+                # Remove numbering or bullet markers
+                cleaned = line.lstrip("0123456789.-•) ").strip()
+                if cleaned:
+                    bullet_points.append(cleaned)
+
+        # Ensure we have exactly 6 (or as many as extracted)
+        bullet_points = bullet_points[:6]
+
+        return {
+            "status": "success",
+            "bullet_points": bullet_points,
+            "count": len(bullet_points)
+        }
+
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
