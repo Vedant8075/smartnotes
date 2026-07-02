@@ -13,13 +13,13 @@ from services.PDF_summarizer import summarize_long_pdf
 from services.media_summariser.process_media import process_media_file
 from services.Media_summarizer import summarize_long_transcript as summarize_media_transcript
 import os
+from bson.objectid import ObjectId
 from groq import Groq
 app=FastAPI()
 
 # Request Schemas
 class YouTubeRequest(BaseModel):
     url: str
-
 
 class TranscriptItem(BaseModel):
     time: str
@@ -443,6 +443,162 @@ Questions:
         return {"prompts": []}
 
 
+# --------------------------
+# Chat QnA with Embeddings & RAG
+# --------------------------
+@app.post("/chat")
+async def chat_with_rag(request: dict = Body(...)):
+    try:
+        from database.crud import notes_collection
+        from langchain_huggingface import HuggingFaceEmbeddings
+        import numpy as np
 
+        message = request.get("message", "").strip()
+        summary = request.get("summary", "").strip()
+        note_id = request.get("note_id", "").strip()
 
+        print(f"Note ID: {note_id}")
+        print(f"Summary: {summary}")
+        print(f"Message: {message}")
+
+        if not message:
+            return {"reply": "Please ask a question."}
+
+        groq_api_key = os.getenv("GROQ_API_KEY")
+        if not groq_api_key:
+            return {"reply": "⚠️ API key not configured."}
+
+        # Initialize embedding model
+        embedding_model = HuggingFaceEmbeddings(
+            model_name="sentence-transformers/all-MiniLM-L6-v2"
+        )
+        print("Model loaded")
+
+        question_embedding = embedding_model.embed_query(message)
+        print("Question embeddings generated")
+
+        # Retrieve embeddings from MongoDB
+        context_text = ""
+        retrieval_method = None
+
+        if note_id:
+            try:
+                note = notes_collection.find_one({"_id": ObjectId(note_id)})
+                print(f"Note found: {note is not None}")
+
+                if note and note.get("embeddings"):
+                    embeddings_list = note["embeddings"]
+                    print(f"Found {len(embeddings_list)} embedding chunks")
+
+                    # Compute similarity scores
+                    scores = []
+                    for emb_item in embeddings_list:
+                        if isinstance(emb_item, dict) and "embedding" in emb_item:
+                            # Extract the embedding from MongoDB's extended JSON format
+                            raw_embedding = emb_item["embedding"]
+
+                            # Handle MongoDB's $numberDouble format
+                            if isinstance(raw_embedding, list):
+                                # Extract numeric values from $numberDouble wrappers
+                                stored_embedding = np.array([
+                                    float(val["$numberDouble"]) if isinstance(val, dict) and "$numberDouble" in val
+                                    else float(val) #type: ignore
+                                    for val in raw_embedding
+                                ], dtype=np.float32)
+
+                                print(f"Converted embedding shape: {stored_embedding.shape}")
+                            else:
+                                stored_embedding = np.array(raw_embedding)
+
+                            question_vec = np.array(question_embedding)
+
+                            # Ensure both vectors have the same dimension
+                            if len(stored_embedding) != len(question_vec):
+                                print(
+                                    f"⚠️ Dimension mismatch: stored={len(stored_embedding)}, question={len(question_vec)}")
+                                continue
+
+                            # Cosine similarity
+                            similarity = np.dot(stored_embedding, question_vec) / (
+                                    np.linalg.norm(stored_embedding) * np.linalg.norm(question_vec) + 1e-8
+                            )
+
+                            text_chunk = emb_item.get("text", "").strip()
+                            if text_chunk:  # Only add non-empty chunks
+                                scores.append((similarity, text_chunk))
+                                print(f"Similarity: {similarity:.4f}")
+
+                    if scores:
+                        # Sort by similarity and get top-3 chunks
+                        scores.sort(reverse=True, key=lambda x: x[0])
+                        top_chunks = [text for _, text in scores[:3]]
+                        context_text = "\n\n".join(top_chunks)
+                        retrieval_method = "embeddings"
+                        print(f"Retrieved {len(top_chunks)} chunks via embeddings")
+                        print(f"Top similarity score: {scores[0][0]:.4f}")
+                    else:
+                        print("No valid embeddings found after processing")
+
+                # Fallback to summary if embeddings didn't work
+                if not context_text and summary:
+                    context_text = summary
+                    retrieval_method = "summary"
+                    print("Falling back to summary")
+
+                # Last resort: use full note content if available
+                if not context_text and note and note.get("content"):
+                    context_text = note["content"]
+                    retrieval_method = "full_content"
+                    print("Falling back to full note content")
+
+            except Exception as e:
+                print(f"⚠️ Error retrieving from note_id: {str(e)}")
+                import traceback
+                traceback.print_exc()
+
+        # Final check for context
+        if not context_text:
+            return {
+                "reply": "I don't have any context to answer your question. Please make sure:\n"
+                         "1. A valid note_id is provided, or\n"
+                         "2. The note has been processed with embeddings, or\n"
+                         "3. A summary is available."
+            }
+
+        # Build RAG prompt
+        rag_prompt = f"""Use the following context to answer the question. If the information needed to answer is not present in the context, respond that the context does not include the answer"
+
+Context:
+{context_text}
+
+Question: {message}
+
+Answer:
+"""
+
+        client = Groq(api_key=groq_api_key)
+
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[{"role": "user", "content": rag_prompt}],
+            max_tokens=1000,
+            temperature=0.7
+        )
+
+        reply = response.choices[0].message.content
+        if not reply:
+            reply = "⚠️ No response generated."
+
+        print(f"Response generated using {retrieval_method}")
+
+        return {
+            "reply": reply.strip(),
+            "context_source": retrieval_method  # Optional: helps with debugging
+        }
+
+    except Exception as e:
+        print(f"Error in chat endpoint: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"reply": f"❌ Error: {str(e)}"}
 
