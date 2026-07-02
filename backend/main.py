@@ -326,6 +326,7 @@ def delete_note(note_id: str):
         raise HTTPException(status_code=500, detail=str(e))
     
 
+
 # --------------------------
 # Generate Flashcard Bullet Points from Summary
 # --------------------------
@@ -387,5 +388,61 @@ Bullet Points:
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
+
+
+
+   
+# --------------------------
+# Generate Suggested Prompts from Summary
+# --------------------------
+@app.post("/prompts")
+async def generate_prompts(request: dict = Body(...)):
+    try:
+        summary = request.get("summary", "")
+        if not summary or not summary.strip():
+            return {"prompts": []}
+
+        groq_api_key = os.getenv("GROQ_API_KEY")
+        if not groq_api_key:
+            return {"prompts": []}
+
+        client = Groq(api_key=groq_api_key)
+
+        prompt = f"""Based on this summary strictly, generate 3 good questions a user might ask about the content, dont include anything outside the summary.
+Return only the questions, one per line, very short, without numbering or bullet points.
+
+Summary:
+{summary}
+
+Questions:
+"""
+
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=300,
+            temperature=0.7
+        )
+
+        questions_text = response.choices[0].message.content
+        if not questions_text:
+            return {"prompts": []}
+
+        questions_text = questions_text.strip()
+
+        # Split by newlines and clean
+        questions = [q.strip() for q in questions_text.split("\n") if q.strip()]
+
+        # Convert to prompt objects
+        prompts = [{"text": q} for q in questions[:4]]
+
+        return {"prompts": prompts}
+
+    except Exception as e:
+        print(f"Error generating prompts: {str(e)}")
+        return {"prompts": []}
+
+
+
 
 
