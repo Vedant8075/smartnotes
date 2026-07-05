@@ -1,6 +1,7 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
-import { Home, Youtube, FileText, Clock, AudioLines } from "lucide-react";
+import { Home, FileText, Clock, AudioLines } from "lucide-react";
+import { FaYoutube } from "react-icons/fa";
 import logo from "../assets/logo.png";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useNavigate } from "react-router-dom";
@@ -45,7 +46,7 @@ const Sidebar = () => {
     <ul className="space-y-4 text-gray-400">
       <li>
         <NavLink to="/yt" className={linkClasses}>
-          <Youtube size={20} /> YouTube
+          <FaYoutube size={20} /> YouTube
         </NavLink>
       </li>
       <li>
