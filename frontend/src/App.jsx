@@ -2,6 +2,7 @@ import React from 'react'
 import Login from './pages/Login';
 import Layout from './components/Layout.jsx';
 import YouTubeSummarizer from "./pages/YoutubeSummarizer.jsx";
+import AudioVideoSummarizer from "./pages/AudioVideoSummarizer.jsx";
 import { Routes, Route, Navigate } from "react-router-dom";
 import PublicOnlyRoute from "./components/PublicOnlyRoute.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
@@ -19,6 +20,7 @@ function App(){
           }>
           <Route index element={<Navigate to="/yt" replace />} />
           <Route path="/yt" element={<YouTubeSummarizer />} />
+          <Route path="/audio-video" element={<AudioVideoSummarizer />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
