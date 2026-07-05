@@ -318,7 +318,7 @@ Context-Aware Answer
 ## Clone Repository
 
 ```bash
-git clone https://github.com/yourusername/SmartNotes.git
+git clone https://github.com/Vedant8075/SmartNotes.git
 ```
 
 ```
