@@ -310,37 +310,6 @@ Context-Aware Answer
 | POST | `/prompts` | Generate Suggested Prompts |
 | POST | `/chat` | Chat using RAG |
 
----
-
-# 📸 Screenshots
-
-## YouTube Summarizer
-
-> Add screenshot here
-
----
-
-## PDF Summarizer
-
-> Add screenshot here
-
----
-
-## AI Chat
-
-> Add screenshot here
-
----
-
-## Flashcards
-
-> Add screenshot here
-
----
-
-## History
-
-> Add screenshot here
 
 ---
 
