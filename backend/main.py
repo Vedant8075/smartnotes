@@ -4,6 +4,7 @@ from utils.youtube_transcript import get_transcripts
 from youtube_transcript_api._errors import IpBlocked, NoTranscriptFound
 from pydantic import BaseModel
 from typing import List, Optional
+from fastapi.middleware.cors import CORSMiddleware
 from services.media_summariser.embed import create_embeddings
 from services.YT_summarizer import summarize_long_transcript
 from database.historySchema import NoteModel,NoteResponseModel
@@ -43,7 +44,13 @@ class ChatRequest(BaseModel):
     summary: Optional[str] = None
     videoId: str
 
-
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # --------------------------
 # YouTube Transcript API route for viewPage component transcript displaying
