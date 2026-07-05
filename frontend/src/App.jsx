@@ -1,9 +1,15 @@
 import React from 'react'
-
-
+import Login from './pages/Login';
+import PublicOnlyRoute from "./components/PublicOnlyRoute.jsx";
+import ProtectedRoute from "./components/ProtectedRoute.jsx";
 function App(){
   return (
-    <div>App</div>
+    <div className="h-screen bg-black">
+      <Routes>
+         <Route path="/login" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
+      </Routes>
+      
+    </div>
   )
 }
 
